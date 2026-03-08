@@ -2,7 +2,7 @@
 
 # 🛰️ Kessler for VS Code
 
-<img src="https://raw.githubusercontent.com/hariharen9/kessler/main/assets/banner.png" alt="Kessler Banner" width="100%" />
+<img src="https://raw.githubusercontent.com/hariharen9/kessler/main/assets/icon.png" alt="Kessler Banner" width="100%" />
 
 **Clear the orbital debris from your local development environment.**
 
