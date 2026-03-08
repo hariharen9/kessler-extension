@@ -178,11 +178,34 @@ async function showLaunchpad() {
             }
         }
     }
-    const selectedItems = await vscode.window.showQuickPick(items, {
-        canPickMany: true,
-        placeHolder: 'Select debris to safely move to OS Trash',
-        title: 'Kessler: Orbital Cleanup'
+    const quickPick = vscode.window.createQuickPick();
+    quickPick.items = items;
+    quickPick.canSelectMany = true;
+    quickPick.placeholder = 'Select debris to safely move to OS Trash';
+    quickPick.title = 'Kessler: Orbital Cleanup';
+    // Pre-select items that have the 'picked' property true
+    const preSelected = items.filter(item => item.picked);
+    quickPick.selectedItems = preSelected;
+    // Create a custom Clean button
+    const cleanButton = {
+        iconPath: new vscode.ThemeIcon('trash'),
+        tooltip: 'Clean Selected Debris'
+    };
+    quickPick.buttons = [cleanButton];
+    quickPick.onDidTriggerButton(async (button) => {
+        if (button === cleanButton) {
+            await handleClean(quickPick.selectedItems, artifactMap);
+            quickPick.hide();
+        }
     });
+    quickPick.onDidAccept(async () => {
+        await handleClean(quickPick.selectedItems, artifactMap);
+        quickPick.hide();
+    });
+    quickPick.onDidHide(() => quickPick.dispose());
+    quickPick.show();
+}
+async function handleClean(selectedItems, artifactMap) {
     if (!selectedItems || selectedItems.length === 0) {
         return; // User cancelled or selected nothing
     }
