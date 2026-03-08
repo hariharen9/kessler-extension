@@ -2,17 +2,17 @@
   "name": "kessler-vscode",
   "displayName": "Kessler",
   "description": "Intelligently find and safely clean build artifacts and caches",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "hariharen",
   "icon": "assets/icon.png",
   "pricing": "Free",
-  "homepage": "https://github.com/hariharen9/kessler",
+  "homepage": "https://github.com/hariharen9/kessler-extension",
   "bugs": {
-    "url": "https://github.com/hariharen9/kessler/issues"
+    "url": "https://github.com/hariharen9/kessler-extension/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/hariharen9/kessler-vscode"
+    "url": "https://github.com/hariharen9/kessler-extension"
   },
   "galleryBanner": {
     "color": "#1A1B26",
@@ -27,7 +27,7 @@
   ],
   "keywords": [
     "cleanup",
-    "node_modules",
+    "cleaner",
     "build-artifacts",
     "disk-space",
     "cache",
