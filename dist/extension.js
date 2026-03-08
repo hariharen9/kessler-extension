@@ -37,7 +37,29 @@ async function updateDebrisStatus() {
     }
     if (totalSize > 0) {
         statusBarItem.text = `$(trash) 🛰️ Kessler: ${(0, utils_1.formatBytes)(totalSize)}`;
-        statusBarItem.tooltip = `Found ${cachedProjects.length} projects with debris. Click to clean.`;
+        let safeSize = 0, deepSize = 0, ignoredSize = 0;
+        for (const p of cachedProjects) {
+            for (const a of p.artifacts) {
+                if (a.tier === 'safe')
+                    safeSize += a.size;
+                else if (a.tier === 'deep')
+                    deepSize += a.size;
+                else if (a.tier === 'ignored')
+                    ignoredSize += a.size;
+            }
+        }
+        const tooltip = new vscode.MarkdownString();
+        tooltip.isTrusted = true;
+        tooltip.appendMarkdown(`**🛰️ Kessler Orbital Telemetry**\n\n`);
+        tooltip.appendMarkdown(`Found debris across **${cachedProjects.length} projects**:\n\n`);
+        if (safeSize > 0)
+            tooltip.appendMarkdown(`🟢 **Safe Caches:** ${(0, utils_1.formatBytes)(safeSize)}\n\n`);
+        if (deepSize > 0)
+            tooltip.appendMarkdown(`🟠 **Deep Artifacts:** ${(0, utils_1.formatBytes)(deepSize)}\n\n`);
+        if (ignoredSize > 0)
+            tooltip.appendMarkdown(`🟡 **User Ignored:** ${(0, utils_1.formatBytes)(ignoredSize)}\n\n`);
+        tooltip.appendMarkdown(`---\n*Click to open the Launchpad and clean your orbit.*`);
+        statusBarItem.tooltip = tooltip;
         const config = vscode.workspace.getConfiguration('kessler');
         const colorPref = config.get('debrisColor') || 'error';
         if (colorPref === 'error') {
@@ -70,23 +92,90 @@ async function showLaunchpad() {
     }
     const items = [];
     const artifactMap = new Map();
-    for (const project of cachedProjects) {
-        // Add a separator for the project
-        items.push({
-            label: project.type,
-            description: vscode.workspace.asRelativePath(project.path),
-            kind: vscode.QuickPickItemKind.Separator
-        });
-        // Add the artifacts as pickable items
-        for (const artifact of project.artifacts) {
-            const relativePath = vscode.workspace.asRelativePath(artifact.path);
-            const itemLabel = `$(file-directory) ${relativePath}`;
+    const config = vscode.workspace.getConfiguration('kessler');
+    const scanGitIgnoredFlag = config.get('scanGitIgnored') ?? false;
+    if (scanGitIgnoredFlag) {
+        // Sort artifacts by tier
+        const safeArtifacts = [];
+        const deepArtifacts = [];
+        const ignoredArtifacts = [];
+        for (const project of cachedProjects) {
+            for (const artifact of project.artifacts) {
+                if (artifact.tier === 'safe')
+                    safeArtifacts.push({ p: project, a: artifact });
+                else if (artifact.tier === 'deep')
+                    deepArtifacts.push({ p: project, a: artifact });
+                else if (artifact.tier === 'ignored')
+                    ignoredArtifacts.push({ p: project, a: artifact });
+            }
+        }
+        if (safeArtifacts.length > 0) {
             items.push({
-                label: itemLabel,
-                description: `[${artifact.tier}] ${(0, utils_1.formatBytes)(artifact.size)}`,
-                picked: artifact.tier === 'safe' // Pre-select safe tier by default
+                label: '🟢 SAFE CACHES (Pre-selected)',
+                kind: vscode.QuickPickItemKind.Separator
             });
-            artifactMap.set(itemLabel, artifact);
+            for (const { p, a } of safeArtifacts) {
+                const relativePath = vscode.workspace.asRelativePath(a.path);
+                const itemLabel = `$(pass-filled) ${relativePath}`;
+                items.push({
+                    label: itemLabel,
+                    description: `[${p.type}] ${(0, utils_1.formatBytes)(a.size)}`,
+                    picked: true
+                });
+                artifactMap.set(itemLabel, a);
+            }
+        }
+        if (deepArtifacts.length > 0) {
+            items.push({
+                label: '🟠 DEEP ARTIFACTS (Unselected)',
+                kind: vscode.QuickPickItemKind.Separator
+            });
+            for (const { p, a } of deepArtifacts) {
+                const relativePath = vscode.workspace.asRelativePath(a.path);
+                const itemLabel = `$(warning) ${relativePath}`;
+                items.push({
+                    label: itemLabel,
+                    description: `[Build/Binaries] ${(0, utils_1.formatBytes)(a.size)}`,
+                    picked: false
+                });
+                artifactMap.set(itemLabel, a);
+            }
+        }
+        if (ignoredArtifacts.length > 0) {
+            items.push({
+                label: '🟡 USER IGNORED (Review Carefully)',
+                kind: vscode.QuickPickItemKind.Separator
+            });
+            for (const { p, a } of ignoredArtifacts) {
+                const relativePath = vscode.workspace.asRelativePath(a.path);
+                const itemLabel = `$(eye-closed) ${relativePath}`;
+                items.push({
+                    label: itemLabel,
+                    description: `[Gitignored] ${(0, utils_1.formatBytes)(a.size)}`,
+                    picked: false
+                });
+                artifactMap.set(itemLabel, a);
+            }
+        }
+    }
+    else {
+        // Original Project-grouped UI
+        for (const project of cachedProjects) {
+            items.push({
+                label: project.type,
+                description: vscode.workspace.asRelativePath(project.path),
+                kind: vscode.QuickPickItemKind.Separator
+            });
+            for (const artifact of project.artifacts) {
+                const relativePath = vscode.workspace.asRelativePath(artifact.path);
+                const itemLabel = `$(file-directory) ${relativePath}`;
+                items.push({
+                    label: itemLabel,
+                    description: `[${artifact.tier}] ${(0, utils_1.formatBytes)(artifact.size)}`,
+                    picked: artifact.tier === 'safe'
+                });
+                artifactMap.set(itemLabel, artifact);
+            }
         }
     }
     const selectedItems = await vscode.window.showQuickPick(items, {

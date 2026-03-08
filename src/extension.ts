@@ -45,7 +45,26 @@ async function updateDebrisStatus() {
 
     if (totalSize > 0) {
         statusBarItem.text = `$(trash) 🛰️ Kessler: ${formatBytes(totalSize)}`;
-        statusBarItem.tooltip = `Found ${cachedProjects.length} projects with debris. Click to clean.`;
+
+        let safeSize = 0, deepSize = 0, ignoredSize = 0;
+        for (const p of cachedProjects) {
+            for (const a of p.artifacts) {
+                if (a.tier === 'safe') safeSize += a.size;
+                else if (a.tier === 'deep') deepSize += a.size;
+                else if (a.tier === 'ignored') ignoredSize += a.size;
+            }
+        }
+
+        const tooltip = new vscode.MarkdownString();
+        tooltip.isTrusted = true;
+        tooltip.appendMarkdown(`**🛰️ Kessler Orbital Telemetry**\n\n`);
+        tooltip.appendMarkdown(`Found debris across **${cachedProjects.length} projects**:\n\n`);
+        if (safeSize > 0) tooltip.appendMarkdown(`🟢 **Safe Caches:** ${formatBytes(safeSize)}\n\n`);
+        if (deepSize > 0) tooltip.appendMarkdown(`🟠 **Deep Artifacts:** ${formatBytes(deepSize)}\n\n`);
+        if (ignoredSize > 0) tooltip.appendMarkdown(`🟡 **User Ignored:** ${formatBytes(ignoredSize)}\n\n`);
+        tooltip.appendMarkdown(`---\n*Click to open the Launchpad and clean your orbit.*`);
+        
+        statusBarItem.tooltip = tooltip;
         
         const config = vscode.workspace.getConfiguration('kessler');
         const colorPref = config.get<string>('debrisColor') || 'error';
@@ -80,25 +99,93 @@ async function showLaunchpad() {
     const items: vscode.QuickPickItem[] = [];
     const artifactMap = new Map<string, Artifact>();
 
-    for (const project of cachedProjects) {
-        // Add a separator for the project
-        items.push({
-            label: project.type,
-            description: vscode.workspace.asRelativePath(project.path),
-            kind: vscode.QuickPickItemKind.Separator
-        });
+    const config = vscode.workspace.getConfiguration('kessler');
+    const scanGitIgnoredFlag = config.get<boolean>('scanGitIgnored') ?? false;
 
-        // Add the artifacts as pickable items
-        for (const artifact of project.artifacts) {
-            const relativePath = vscode.workspace.asRelativePath(artifact.path);
-            const itemLabel = `$(file-directory) ${relativePath}`;
-            
+    if (scanGitIgnoredFlag) {
+        // Sort artifacts by tier
+        const safeArtifacts: { p: Project, a: Artifact }[] = [];
+        const deepArtifacts: { p: Project, a: Artifact }[] = [];
+        const ignoredArtifacts: { p: Project, a: Artifact }[] = [];
+
+        for (const project of cachedProjects) {
+            for (const artifact of project.artifacts) {
+                if (artifact.tier === 'safe') safeArtifacts.push({ p: project, a: artifact });
+                else if (artifact.tier === 'deep') deepArtifacts.push({ p: project, a: artifact });
+                else if (artifact.tier === 'ignored') ignoredArtifacts.push({ p: project, a: artifact });
+            }
+        }
+
+        if (safeArtifacts.length > 0) {
             items.push({
-                label: itemLabel,
-                description: `[${artifact.tier}] ${formatBytes(artifact.size)}`,
-                picked: artifact.tier === 'safe' // Pre-select safe tier by default
+                label: '🟢 SAFE CACHES (Pre-selected)',
+                kind: vscode.QuickPickItemKind.Separator
             });
-            artifactMap.set(itemLabel, artifact);
+            for (const { p, a } of safeArtifacts) {
+                const relativePath = vscode.workspace.asRelativePath(a.path);
+                const itemLabel = `$(pass-filled) ${relativePath}`;
+                items.push({
+                    label: itemLabel,
+                    description: `[${p.type}] ${formatBytes(a.size)}`,
+                    picked: true
+                });
+                artifactMap.set(itemLabel, a);
+            }
+        }
+
+        if (deepArtifacts.length > 0) {
+            items.push({
+                label: '🟠 DEEP ARTIFACTS (Unselected)',
+                kind: vscode.QuickPickItemKind.Separator
+            });
+            for (const { p, a } of deepArtifacts) {
+                const relativePath = vscode.workspace.asRelativePath(a.path);
+                const itemLabel = `$(warning) ${relativePath}`;
+                items.push({
+                    label: itemLabel,
+                    description: `[Build/Binaries] ${formatBytes(a.size)}`,
+                    picked: false
+                });
+                artifactMap.set(itemLabel, a);
+            }
+        }
+
+        if (ignoredArtifacts.length > 0) {
+            items.push({
+                label: '🟡 USER IGNORED (Review Carefully)',
+                kind: vscode.QuickPickItemKind.Separator
+            });
+            for (const { p, a } of ignoredArtifacts) {
+                const relativePath = vscode.workspace.asRelativePath(a.path);
+                const itemLabel = `$(eye-closed) ${relativePath}`;
+                items.push({
+                    label: itemLabel,
+                    description: `[Gitignored] ${formatBytes(a.size)}`,
+                    picked: false
+                });
+                artifactMap.set(itemLabel, a);
+            }
+        }
+    } else {
+        // Original Project-grouped UI
+        for (const project of cachedProjects) {
+            items.push({
+                label: project.type,
+                description: vscode.workspace.asRelativePath(project.path),
+                kind: vscode.QuickPickItemKind.Separator
+            });
+
+            for (const artifact of project.artifacts) {
+                const relativePath = vscode.workspace.asRelativePath(artifact.path);
+                const itemLabel = `$(file-directory) ${relativePath}`;
+                
+                items.push({
+                    label: itemLabel,
+                    description: `[${artifact.tier}] ${formatBytes(artifact.size)}`,
+                    picked: artifact.tier === 'safe'
+                });
+                artifactMap.set(itemLabel, artifact);
+            }
         }
     }
 

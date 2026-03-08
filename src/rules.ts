@@ -1,4 +1,4 @@
-export type Tier = 'safe' | 'deep' | 'danger';
+export type Tier = 'safe' | 'deep' | 'danger' | 'ignored';
 
 export interface RuleTarget {
     path: string;

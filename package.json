@@ -48,6 +48,11 @@
           "default": [".git"],
           "description": "Folders to completely skip during the workspace scan for performance."
         },
+        "kessler.scanGitIgnored": {
+          "type": "boolean",
+          "default": false,
+          "description": "Scan and surface .gitignore'd directories. When enabled, the QuickPick menu switches to a 'Tiered' view (Safe, Deep, Ignored) instead of grouping by Project."
+        },
         "kessler.debrisColor": {
           "type": "string",
           "enum": ["error", "warning", "info", "none"],
