@@ -2,7 +2,13 @@
   "name": "kessler-vscode",
   "displayName": "Kessler",
   "description": "Intelligently find and safely clean build artifacts and caches",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "publisher": "hariharen",
+  "icon": "assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hariharen9/kessler"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },
