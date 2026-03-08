@@ -23,7 +23,40 @@
         "command": "kessler.rescan",
         "title": "Kessler: Rescan Workspace"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Kessler",
+      "properties": {
+        "kessler.showDeepArtifacts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show 'deep' tier artifacts (e.g. builds, dist, bin) in the QuickPick menu. They will be unchecked by default for safety."
+        },
+        "kessler.customDangerZone": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional file or directory names to NEVER delete (e.g. ['my-secret-key.pem', 'docker-compose.yml'])."
+        },
+        "kessler.excludeFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [".git"],
+          "description": "Folders to completely skip during the workspace scan for performance."
+        },
+        "kessler.debrisColor": {
+          "type": "string",
+          "enum": ["error", "warning", "info", "none"],
+          "enumItemLabels": ["Error (Red)", "Warning (Yellow/Orange)", "Info (Blue)", "None (Default text)"],
+          "default": "error",
+          "description": "Choose the color of the status bar text when debris is found. (Click the status bar or run 'Rescan Workspace' to apply changes)"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

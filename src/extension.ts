@@ -44,11 +44,23 @@ async function updateDebrisStatus() {
     }
 
     if (totalSize > 0) {
-        statusBarItem.text = `$(trash) Kessler: ${formatBytes(totalSize)}`;
+        statusBarItem.text = `$(trash) 🛰️ Kessler: ${formatBytes(totalSize)}`;
         statusBarItem.tooltip = `Found ${cachedProjects.length} projects with debris. Click to clean.`;
-        statusBarItem.color = new vscode.ThemeColor('errorForeground');
+        
+        const config = vscode.workspace.getConfiguration('kessler');
+        const colorPref = config.get<string>('debrisColor') || 'error';
+        
+        if (colorPref === 'error') {
+            statusBarItem.color = new vscode.ThemeColor('errorForeground');
+        } else if (colorPref === 'warning') {
+            statusBarItem.color = new vscode.ThemeColor('list.warningForeground');
+        } else if (colorPref === 'info') {
+            statusBarItem.color = new vscode.ThemeColor('textLink.foreground');
+        } else {
+            statusBarItem.color = undefined;
+        }
     } else {
-        statusBarItem.text = `$(check) Kessler: Clean`;
+        statusBarItem.text = `$(check) 🛰️ Kessler: Clean`;
         statusBarItem.tooltip = `Orbit is clear!`;
         statusBarItem.color = undefined;
     }

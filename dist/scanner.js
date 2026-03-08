@@ -3,15 +3,22 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.scanWorkspace = scanWorkspace;
 const fs = require("fs");
 const path = require("path");
+const vscode = require("vscode");
 const rules_1 = require("./rules");
 async function scanWorkspace(rootPaths) {
     const projects = [];
+    // Read VS Code settings
+    const config = vscode.workspace.getConfiguration('kessler');
+    const excludeFolders = config.get('excludeFolders') || ['.git'];
+    const customDangerZone = config.get('customDangerZone') || [];
+    const showDeepArtifacts = config.get('showDeepArtifacts') ?? true;
+    const combinedDangerZone = [...rules_1.DANGER_ZONE, ...customDangerZone];
     for (const root of rootPaths) {
-        await scanDirectory(root, projects);
+        await scanDirectory(root, projects, excludeFolders, combinedDangerZone, showDeepArtifacts);
     }
     return projects;
 }
-async function scanDirectory(dir, projects) {
+async function scanDirectory(dir, projects, excludeFolders, dangerZone, showDeepArtifacts) {
     let entries;
     try {
         entries = await fs.promises.readdir(dir, { withFileTypes: true });
@@ -25,36 +32,51 @@ async function scanDirectory(dir, projects) {
     if (matchedRule) {
         const project = { path: dir, type: matchedRule.name, artifacts: [], totalSize: 0 };
         for (const target of matchedRule.targets) {
-            if (rules_1.DANGER_ZONE.includes(target.path))
+            if (!showDeepArtifacts && target.tier === 'deep')
                 continue;
-            const targetPath = path.join(dir, target.path);
-            try {
-                const stats = await fs.promises.stat(targetPath);
-                if (stats) {
-                    const size = await calculateSize(targetPath);
-                    if (size > 0) {
-                        project.artifacts.push({ path: targetPath, size, tier: target.tier });
-                        project.totalSize += size;
+            if (dangerZone.includes(target.path))
+                continue;
+            // Handle basic wildcard matching (e.g. *.test)
+            let matchingEntries = [target.path];
+            if (target.path.includes('*')) {
+                const regex = new RegExp('^' + target.path.replace(/\*/g, '.*') + '$');
+                matchingEntries = entryNames.filter(name => regex.test(name));
+            }
+            for (const matchName of matchingEntries) {
+                if (dangerZone.includes(matchName))
+                    continue;
+                const targetPath = path.join(dir, matchName);
+                try {
+                    const stats = await fs.promises.stat(targetPath);
+                    if (stats) {
+                        const size = await calculateSize(targetPath);
+                        if (size > 0) {
+                            project.artifacts.push({ path: targetPath, size, tier: target.tier });
+                            project.totalSize += size;
+                        }
                     }
                 }
-            }
-            catch {
-                // Ignore missing files
+                catch {
+                    // Ignore missing files
+                }
             }
         }
         if (project.artifacts.length > 0) {
             projects.push(project);
         }
     }
-    // Recurse into subdirectories (skipping hidden and common heavy folders)
+    // Recurse into subdirectories
     for (const entry of entries) {
         if (entry.isDirectory() && !entry.name.startsWith('.')) {
+            // Respect user exclusions
+            if (excludeFolders.includes(entry.name))
+                continue;
             // Don't recurse into known targets
             if (matchedRule && matchedRule.targets.some(t => t.path === entry.name))
                 continue;
             if (entry.name === 'node_modules')
                 continue;
-            await scanDirectory(path.join(dir, entry.name), projects);
+            await scanDirectory(path.join(dir, entry.name), projects, excludeFolders, dangerZone, showDeepArtifacts);
         }
     }
 }

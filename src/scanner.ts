@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as vscode from 'vscode';
 import { DEFAULT_RULES, DANGER_ZONE, Tier } from './rules';
 
 export interface Artifact {
@@ -17,13 +18,28 @@ export interface Project {
 
 export async function scanWorkspace(rootPaths: string[]): Promise<Project[]> {
     const projects: Project[] = [];
+    
+    // Read VS Code settings
+    const config = vscode.workspace.getConfiguration('kessler');
+    const excludeFolders = config.get<string[]>('excludeFolders') || ['.git'];
+    const customDangerZone = config.get<string[]>('customDangerZone') || [];
+    const showDeepArtifacts = config.get<boolean>('showDeepArtifacts') ?? true;
+    
+    const combinedDangerZone = [...DANGER_ZONE, ...customDangerZone];
+
     for (const root of rootPaths) {
-        await scanDirectory(root, projects);
+        await scanDirectory(root, projects, excludeFolders, combinedDangerZone, showDeepArtifacts);
     }
     return projects;
 }
 
-async function scanDirectory(dir: string, projects: Project[]) {
+async function scanDirectory(
+    dir: string, 
+    projects: Project[], 
+    excludeFolders: string[], 
+    dangerZone: string[],
+    showDeepArtifacts: boolean
+) {
     let entries: fs.Dirent[];
     try {
         entries = await fs.promises.readdir(dir, { withFileTypes: true });
@@ -42,20 +58,32 @@ async function scanDirectory(dir: string, projects: Project[]) {
         const project: Project = { path: dir, type: matchedRule.name, artifacts: [], totalSize: 0 };
 
         for (const target of matchedRule.targets) {
-            if (DANGER_ZONE.includes(target.path)) continue;
+            if (!showDeepArtifacts && target.tier === 'deep') continue;
+            if (dangerZone.includes(target.path)) continue;
 
-            const targetPath = path.join(dir, target.path);
-            try {
-                const stats = await fs.promises.stat(targetPath);
-                if (stats) {
-                    const size = await calculateSize(targetPath);
-                    if (size > 0) {
-                        project.artifacts.push({ path: targetPath, size, tier: target.tier });
-                        project.totalSize += size;
+            // Handle basic wildcard matching (e.g. *.test)
+            let matchingEntries = [target.path];
+            if (target.path.includes('*')) {
+                const regex = new RegExp('^' + target.path.replace(/\*/g, '.*') + '$');
+                matchingEntries = entryNames.filter(name => regex.test(name));
+            }
+
+            for (const matchName of matchingEntries) {
+                if (dangerZone.includes(matchName)) continue;
+                
+                const targetPath = path.join(dir, matchName);
+                try {
+                    const stats = await fs.promises.stat(targetPath);
+                    if (stats) {
+                        const size = await calculateSize(targetPath);
+                        if (size > 0) {
+                            project.artifacts.push({ path: targetPath, size, tier: target.tier });
+                            project.totalSize += size;
+                        }
                     }
+                } catch {
+                    // Ignore missing files
                 }
-            } catch {
-                // Ignore missing files
             }
         }
 
@@ -64,14 +92,17 @@ async function scanDirectory(dir: string, projects: Project[]) {
         }
     }
 
-    // Recurse into subdirectories (skipping hidden and common heavy folders)
+    // Recurse into subdirectories
     for (const entry of entries) {
         if (entry.isDirectory() && !entry.name.startsWith('.')) {
+            // Respect user exclusions
+            if (excludeFolders.includes(entry.name)) continue;
+
             // Don't recurse into known targets
             if (matchedRule && matchedRule.targets.some(t => t.path === entry.name)) continue;
             if (entry.name === 'node_modules') continue;
             
-            await scanDirectory(path.join(dir, entry.name), projects);
+            await scanDirectory(path.join(dir, entry.name), projects, excludeFolders, dangerZone, showDeepArtifacts);
         }
     }
 }
