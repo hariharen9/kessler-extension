@@ -5,16 +5,36 @@
   "version": "1.0.0",
   "publisher": "hariharen",
   "icon": "assets/icon.png",
+  "pricing": "Free",
+  "homepage": "https://github.com/hariharen9/kessler",
+  "bugs": {
+    "url": "https://github.com/hariharen9/kessler/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/hariharen9/kessler"
+    "url": "https://github.com/hariharen9/kessler-vscode"
+  },
+  "galleryBanner": {
+    "color": "#1A1B26",
+    "theme": "dark"
   },
   "engines": {
     "vscode": "^1.80.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Programming Languages"
   ],
+  "keywords": [
+    "cleanup",
+    "node_modules",
+    "build-artifacts",
+    "disk-space",
+    "cache",
+    "debris"
+  ],
+  "author": "Hariharen",
+  "license": "MIT",
   "activationEvents": [
     "onStartupFinished"
   ],
