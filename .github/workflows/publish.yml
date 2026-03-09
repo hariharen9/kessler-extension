@@ -1,0 +1,38 @@
+name: Publish Extension
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger only when a version tag is pushed (e.g., v1.1.0)
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x' # Keep in sync with package.json engines
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Package extension (VSIX)
+        run: npx vsce package
+        
+      - name: Publish to VS Code Marketplace
+        uses: lannonbr/vsce-action@v3
+        with:
+          args: publish -p ${{ secrets.VSCE_PAT }}
+          
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: "*.vsix"
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
