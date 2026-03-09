@@ -6,9 +6,10 @@
 
 **Clear the orbital debris from your local development environment.**
 
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/hariharen.kessler-vscode?style=for-the-badge&color=00E6C3)](https://marketplace.visualstudio.com/items?itemName=hariharen.kessler-vscode)
-[![Rating](https://img.shields.io/visual-studio-marketplace/r/hariharen.kessler-vscode?style=for-the-badge&color=E3B341)](https://marketplace.visualstudio.com/items?itemName=hariharen.kessler-vscode)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge&color=3776AB)](https://opensource.org/licenses/MIT)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/hariharen.kessler-vscode?style=for-the-badge&logo=visual-studio-code&color=007ACC&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=hariharen.kessler-vscode)
+[![Rating](https://img.shields.io/visual-studio-marketplace/r/hariharen.kessler-vscode?style=for-the-badge&color=E3B341&logo=star&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=hariharen.kessler-vscode)
+[![Version](https://img.shields.io/visual-studio-marketplace/v/hariharen.kessler-vscode?style=for-the-badge&color=00ADD8&label=version)](https://marketplace.visualstudio.com/items?itemName=hariharen.kessler-vscode)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](https://opensource.org/licenses/MIT)
 
 </div>
 
@@ -30,6 +31,8 @@ Over time, it gets clogged with `node_modules`, `targets`, stray `build/` folder
 - **🧠 Context-Aware Engine:** Automatically targets safe artifacts based on project triggers (e.g., `package.json`, `Cargo.toml`, `requirements.txt`). Supports over 30+ ecosystems!
 - **🛡️ Safety First:** Moves debris to your native **OS Trash Bin** instead of a permanent `rm -rf`. You always have an "Undo" button.
 - **🎯 The Launchpad:** A beautiful QuickPick UI that groups debris by project type and pre-selects 100% regeneratable caches while leaving compiled builds unchecked for your protection.
+- **🚫 .kesslerignore Support:** Drop a `.kesslerignore` file in any directory to tell Kessler to skip it and all its subdirectories completely.
+- **🚨 Size Alerts:** Get notified when your orbital debris exceeds a configurable threshold (e.g., 5GB), so you can clear the path before your disk fills up.
 - **⚡ Zero Dependencies:** Written in pure TypeScript using native VS Code File System APIs. Blazingly fast, lightweight, and completely secure.
 
 ---
@@ -58,6 +61,8 @@ Kessler is highly customizable. Open your VS Code Settings (`Cmd/Ctrl + ,`) and 
 | `kessler.showDeepArtifacts` | Toggle whether "deep" tier artifacts (like `dist/`, `build/`) appear in the launchpad menu. |
 | `kessler.customDangerZone` | Add proprietary file/folder names (e.g., `my-secret-key.pem`) that Kessler should **never** touch. |
 | `kessler.excludeFolders` | Folders to completely skip during the background scan to improve performance (defaults to `.git`). |
+| `kessler.sizeThresholdGB` | Total debris size (in GB) that triggers a warning notification. Set to 0 to disable. |
+| `kessler.autoScanInterval` | Interval (in seconds) for automatic background scans to update debris size. Set to 0 to disable. |
 
 ---
 

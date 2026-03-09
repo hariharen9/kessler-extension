@@ -4,6 +4,7 @@ import { formatBytes } from './utils';
 
 let statusBarItem: vscode.StatusBarItem;
 let cachedProjects: Project[] = [];
+let lastThresholdAlertSize: number = 0; // Tracks if we've already alerted for this "surge"
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Kessler VS Code is now active');
@@ -46,6 +47,27 @@ async function updateDebrisStatus() {
     if (totalSize > 0) {
         statusBarItem.text = `$(trash) 🛰️ Kessler: ${formatBytes(totalSize)}`;
 
+        // --- SIZE THRESHOLD ALERT ---
+        const config = vscode.workspace.getConfiguration('kessler');
+        const thresholdGB = config.get<number>('sizeThresholdGB') || 0;
+        const thresholdBytes = thresholdGB * 1024 * 1024 * 1024;
+
+        if (thresholdGB > 0 && totalSize > thresholdBytes) {
+            if (lastThresholdAlertSize === 0) {
+                vscode.window.showWarningMessage(
+                    `🛰️ Kessler: Orbital debris has reached ${formatBytes(totalSize)}! Your orbit is getting crowded.`,
+                    "Open Launchpad"
+                ).then(selection => {
+                    if (selection === "Open Launchpad") {
+                        vscode.commands.executeCommand('kessler.showLaunchpad');
+                    }
+                });
+                lastThresholdAlertSize = totalSize;
+            }
+        } else {
+            lastThresholdAlertSize = 0;
+        }
+
         let safeSize = 0, deepSize = 0, ignoredSize = 0;
         for (const p of cachedProjects) {
             for (const a of p.artifacts) {
@@ -66,8 +88,7 @@ async function updateDebrisStatus() {
         
         statusBarItem.tooltip = tooltip;
         
-        const config = vscode.workspace.getConfiguration('kessler');
-        const colorPref = config.get<string>('debrisColor') || 'error';
+        const colorPref = config.get<string>('debrisColor') || 'none';
         
         if (colorPref === 'error') {
             statusBarItem.color = new vscode.ThemeColor('errorForeground');
@@ -79,6 +100,7 @@ async function updateDebrisStatus() {
             statusBarItem.color = undefined;
         }
     } else {
+        lastThresholdAlertSize = 0; // Reset on clean
         statusBarItem.text = `$(check) 🛰️ Kessler: Clean`;
         statusBarItem.tooltip = `Orbit is clear!`;
         statusBarItem.color = undefined;

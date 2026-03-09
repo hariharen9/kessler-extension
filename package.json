@@ -2,7 +2,7 @@
   "name": "kessler-vscode",
   "displayName": "Kessler",
   "description": "Intelligently find and safely clean build artifacts and caches",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "hariharen",
   "icon": "assets/icon.png",
   "pricing": "Free",
@@ -83,8 +83,13 @@
           "type": "string",
           "enum": ["error", "warning", "info", "none"],
           "enumItemLabels": ["Error (Red)", "Warning (Yellow/Orange)", "Info (Blue)", "None (Default text)"],
-          "default": "error",
+          "default": "none",
           "description": "Choose the color of the status bar text when debris is found. (Click the status bar or run 'Rescan Workspace' to apply changes)"
+        },
+        "kessler.sizeThresholdGB": {
+          "type": "number",
+          "default": 5,
+          "description": "Total debris size (in GB) that triggers a warning notification. Set to 0 to disable."
         }
       }
     }

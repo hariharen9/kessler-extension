@@ -132,6 +132,11 @@ async function scanDirectory(
 
     const entryNames = entries.map(e => e.name);
 
+    // .kesslerignore support: skip this entire folder if it exists
+    if (entryNames.includes('.kesslerignore')) {
+        return;
+    }
+
     let matchedRule = DEFAULT_RULES.find(r => 
         r.triggers.some(t => entryNames.includes(t))
     );
