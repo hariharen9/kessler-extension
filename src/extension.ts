@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { scanWorkspace, Project, Artifact } from './scanner';
 import { formatBytes } from './utils';
 
@@ -24,6 +25,87 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Rescan when workspace folders change
     vscode.workspace.onDidChangeWorkspaceFolders(() => updateDebrisStatus());
+
+    // Setup Git Branch Switch Watcher
+    setupGitWatcher();
+}
+
+function setupGitWatcher() {
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+    if (gitExtension) {
+        const initGitApi = () => {
+            const gitApi = gitExtension.exports.getAPI(1);
+            if (!gitApi) return;
+
+            const setupRepo = (repository: any) => {
+                let currentHead = repository.state.HEAD?.name;
+                repository.state.onDidChange(async () => {
+                    const newHead = repository.state.HEAD?.name;
+                    if (currentHead && newHead && currentHead !== newHead) {
+                        currentHead = newHead;
+                        await handleBranchSwitch(repository.rootUri.fsPath);
+                    } else if (!currentHead && newHead) {
+                        currentHead = newHead;
+                    }
+                });
+            };
+
+            gitApi.onDidOpenRepository(setupRepo);
+            if (gitApi.repositories) {
+                gitApi.repositories.forEach(setupRepo);
+            }
+        };
+
+        if (gitExtension.isActive) {
+            initGitApi();
+        } else {
+            gitExtension.activate().then(initGitApi);
+        }
+    }
+}
+
+async function handleBranchSwitch(rootPath: string) {
+    const config = vscode.workspace.getConfiguration('kessler');
+    const isAutoCleanEnabled = config.get<boolean>('autoCleanOnBranchSwitch') ?? false;
+    if (!isAutoCleanEnabled) return;
+
+    const targets = config.get<string[]>('branchSwitchCleanupTargets') ?? ["target", ".next", "build", "dist", "out", ".svelte-kit", ".nuxt", ".parcel-cache"];
+    
+    // Run scanner for this repository
+    const projects = await scanWorkspace([rootPath]);
+    
+    let freedSpace = 0;
+    let deletedCount = 0;
+
+    await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Kessler: Branch switch detected. Vaporizing build artifacts...",
+        cancellable: false
+    }, async (progress) => {
+        for (const p of projects) {
+            for (const a of p.artifacts) {
+                const basename = path.basename(a.path);
+                if (targets.includes(basename)) {
+                    try {
+                        const relativePath = vscode.workspace.asRelativePath(a.path);
+                        progress.report({ message: `Sweeping ${relativePath}...` });
+                        
+                        const uri = vscode.Uri.file(a.path);
+                        await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: true });
+                        freedSpace += a.size;
+                        deletedCount++;
+                    } catch (err) {
+                        console.error(`Failed to trash ${a.path}:`, err);
+                    }
+                }
+            }
+        }
+    });
+
+    if (deletedCount > 0) {
+        vscode.window.showInformationMessage(`✨ Kessler: Branch switch clean complete! Freed ${formatBytes(freedSpace)} from ${deletedCount} build caches.`);
+        await updateDebrisStatus();
+    }
 }
 
 async function updateDebrisStatus() {

@@ -3,10 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = require("vscode");
+const path = require("path");
 const scanner_1 = require("./scanner");
 const utils_1 = require("./utils");
 let statusBarItem;
 let cachedProjects = [];
+let lastThresholdAlertSize = 0; // Tracks if we've already alerted for this "surge"
 function activate(context) {
     console.log('Kessler VS Code is now active');
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -20,6 +22,80 @@ function activate(context) {
     updateDebrisStatus();
     // Rescan when workspace folders change
     vscode.workspace.onDidChangeWorkspaceFolders(() => updateDebrisStatus());
+    // Setup Git Branch Switch Watcher
+    setupGitWatcher();
+}
+function setupGitWatcher() {
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+    if (gitExtension) {
+        const initGitApi = () => {
+            const gitApi = gitExtension.exports.getAPI(1);
+            if (!gitApi)
+                return;
+            const setupRepo = (repository) => {
+                let currentHead = repository.state.HEAD?.name;
+                repository.state.onDidChange(async () => {
+                    const newHead = repository.state.HEAD?.name;
+                    if (currentHead && newHead && currentHead !== newHead) {
+                        currentHead = newHead;
+                        await handleBranchSwitch(repository.rootUri.fsPath);
+                    }
+                    else if (!currentHead && newHead) {
+                        currentHead = newHead;
+                    }
+                });
+            };
+            gitApi.onDidOpenRepository(setupRepo);
+            if (gitApi.repositories) {
+                gitApi.repositories.forEach(setupRepo);
+            }
+        };
+        if (gitExtension.isActive) {
+            initGitApi();
+        }
+        else {
+            gitExtension.activate().then(initGitApi);
+        }
+    }
+}
+async function handleBranchSwitch(rootPath) {
+    const config = vscode.workspace.getConfiguration('kessler');
+    const isAutoCleanEnabled = config.get('autoCleanOnBranchSwitch') ?? false;
+    if (!isAutoCleanEnabled)
+        return;
+    const targets = config.get('branchSwitchCleanupTargets') ?? ["target", ".next", "build", "dist", "out", ".svelte-kit", ".nuxt", ".parcel-cache"];
+    // Run scanner for this repository
+    const projects = await (0, scanner_1.scanWorkspace)([rootPath]);
+    let freedSpace = 0;
+    let deletedCount = 0;
+    await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Kessler: Branch switch detected. Vaporizing build artifacts...",
+        cancellable: false
+    }, async (progress) => {
+        for (const p of projects) {
+            for (const a of p.artifacts) {
+                const basename = path.basename(a.path);
+                if (targets.includes(basename)) {
+                    try {
+                        const relativePath = vscode.workspace.asRelativePath(a.path);
+                        progress.report({ message: `Sweeping ${relativePath}...` });
+                        const uri = vscode.Uri.file(a.path);
+                        await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: true });
+                        freedSpace += a.size;
+                        deletedCount++;
+                    }
+                    catch (err) {
+                        console.error(`Failed to trash ${a.path}:`, err);
+                    }
+                }
+            }
+        }
+    });
+    if (deletedCount > 0) {
+        vscode.window.showInformationMessage(`✨ Kessler: Branch switch clean complete! Freed ${(0, utils_1.formatBytes)(freedSpace)} from ${deletedCount} build caches.`);
+        await updateDebrisStatus();
+    }
 }
 async function updateDebrisStatus() {
     if (!vscode.workspace.workspaceFolders) {
@@ -37,6 +113,23 @@ async function updateDebrisStatus() {
     }
     if (totalSize > 0) {
         statusBarItem.text = `$(trash) 🛰️ Kessler: ${(0, utils_1.formatBytes)(totalSize)}`;
+        // --- SIZE THRESHOLD ALERT ---
+        const config = vscode.workspace.getConfiguration('kessler');
+        const thresholdGB = config.get('sizeThresholdGB') || 0;
+        const thresholdBytes = thresholdGB * 1024 * 1024 * 1024;
+        if (thresholdGB > 0 && totalSize > thresholdBytes) {
+            if (lastThresholdAlertSize === 0) {
+                vscode.window.showWarningMessage(`🛰️ Kessler: Orbital debris has reached ${(0, utils_1.formatBytes)(totalSize)}! Your orbit is getting crowded.`, "Open Launchpad").then(selection => {
+                    if (selection === "Open Launchpad") {
+                        vscode.commands.executeCommand('kessler.showLaunchpad');
+                    }
+                });
+                lastThresholdAlertSize = totalSize;
+            }
+        }
+        else {
+            lastThresholdAlertSize = 0;
+        }
         let safeSize = 0, deepSize = 0, ignoredSize = 0;
         for (const p of cachedProjects) {
             for (const a of p.artifacts) {
@@ -60,8 +153,7 @@ async function updateDebrisStatus() {
             tooltip.appendMarkdown(`🟡 **User Ignored:** ${(0, utils_1.formatBytes)(ignoredSize)}\n\n`);
         tooltip.appendMarkdown(`---\n*Click to open the Launchpad and clean your orbit.*`);
         statusBarItem.tooltip = tooltip;
-        const config = vscode.workspace.getConfiguration('kessler');
-        const colorPref = config.get('debrisColor') || 'error';
+        const colorPref = config.get('debrisColor') || 'none';
         if (colorPref === 'error') {
             statusBarItem.color = new vscode.ThemeColor('errorForeground');
         }
@@ -76,6 +168,7 @@ async function updateDebrisStatus() {
         }
     }
     else {
+        lastThresholdAlertSize = 0; // Reset on clean
         statusBarItem.text = `$(check) 🛰️ Kessler: Clean`;
         statusBarItem.tooltip = `Orbit is clear!`;
         statusBarItem.color = undefined;

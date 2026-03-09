@@ -105,6 +105,10 @@ async function scanDirectory(dir, projects, excludeFolders, dangerZone, showDeep
         return;
     }
     const entryNames = entries.map(e => e.name);
+    // .kesslerignore support: skip this entire folder if it exists
+    if (entryNames.includes('.kesslerignore')) {
+        return;
+    }
     let matchedRule = rules_1.DEFAULT_RULES.find(r => r.triggers.some(t => entryNames.includes(t)));
     if (matchedRule) {
         const project = { path: dir, type: matchedRule.name, artifacts: [], totalSize: 0 };

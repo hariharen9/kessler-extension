@@ -90,6 +90,19 @@
           "type": "number",
           "default": 5,
           "description": "Total debris size (in GB) that triggers a warning notification. Set to 0 to disable."
+        },
+        "kessler.autoCleanOnBranchSwitch": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically vaporize build artifacts (e.g., target, .next, build) when a Git branch switch is detected."
+        },
+        "kessler.branchSwitchCleanupTargets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": ["target", ".next", "build", "dist", "out", ".svelte-kit", ".nuxt", ".parcel-cache"],
+          "description": "Directories to safely clean on branch switch (if autoCleanOnBranchSwitch is enabled)."
         }
       }
     }
