@@ -28,6 +28,8 @@ Over time, it gets clogged with `node_modules`, `targets`, stray `build/` folder
 ## ✨ Features
 
 - **📡 Live Telemetry:** A sleek, unintrusive status bar item (`🗑️ 🛰️ Kessler: 1.2 GB`) that live-updates as you work.
+- **👁️ Inline Debris Lens:** A subtle visual indicator (●) appears next to known debris folders right in your VS Code File Explorer. Right-click any marked folder to instantly "Vaporize Debris" without opening the Launchpad.
+- **🔄 Auto-Clean on Branch Switch:** (The "Phantom Artifact" Fixer) Prevent ghost bugs by having Kessler automatically vaporize compilation caches (like `target/` or `.next/`) the moment you switch Git branches.
 - **🧠 Context-Aware Engine:** Automatically targets safe artifacts based on project triggers (e.g., `package.json`, `Cargo.toml`, `requirements.txt`). Supports over 30+ ecosystems!
 - **🛡️ Safety First:** Moves debris to your native **OS Trash Bin** instead of a permanent `rm -rf`. You always have an "Undo" button.
 - **🎯 The Launchpad:** A beautiful QuickPick UI that groups debris by project type and pre-selects 100% regeneratable caches while leaving compiled builds unchecked for your protection.
@@ -63,6 +65,9 @@ Kessler is highly customizable. Open your VS Code Settings (`Cmd/Ctrl + ,`) and 
 | `kessler.excludeFolders` | Folders to completely skip during the background scan to improve performance (defaults to `.git`). |
 | `kessler.sizeThresholdGB` | Total debris size (in GB) that triggers a warning notification. Set to 0 to disable. |
 | `kessler.autoScanInterval` | Interval (in seconds) for automatic background scans to update debris size. Set to 0 to disable. |
+| `kessler.enableDebrisLens` | Show a subtle visual indicator (●) next to known debris folders in the VS Code File Explorer. |
+| `kessler.autoCleanOnBranchSwitch` | Automatically vaporize build artifacts (e.g., target, .next) when a Git branch switch is detected. |
+| `kessler.branchSwitchCleanupTargets` | An array of folder names to safely clean on branch switch (if `autoCleanOnBranchSwitch` is enabled). |
 
 ---
 

@@ -9,8 +9,39 @@ const utils_1 = require("./utils");
 let statusBarItem;
 let cachedProjects = [];
 let lastThresholdAlertSize = 0; // Tracks if we've already alerted for this "surge"
+let decorationProvider;
+class DebrisDecorationProvider {
+    _onDidChangeFileDecorations = new vscode.EventEmitter();
+    onDidChangeFileDecorations = this._onDidChangeFileDecorations.event;
+    refreshAll() {
+        this._onDidChangeFileDecorations.fire(undefined);
+    }
+    provideFileDecoration(uri, token) {
+        const config = vscode.workspace.getConfiguration('kessler');
+        const isLensEnabled = config.get('enableDebrisLens') ?? true;
+        if (!isLensEnabled) {
+            return undefined;
+        }
+        const fsPath = uri.fsPath;
+        // Check if this path is known debris
+        for (const p of cachedProjects) {
+            for (const a of p.artifacts) {
+                if (a.path === fsPath) {
+                    return {
+                        badge: '●', // Subtle dot indicating tracked debris
+                        tooltip: `Kessler Debris: ${(0, utils_1.formatBytes)(a.size)}`,
+                        color: new vscode.ThemeColor('descriptionForeground') // Dimmer text color
+                    };
+                }
+            }
+        }
+        return undefined;
+    }
+}
 function activate(context) {
     console.log('Kessler VS Code is now active');
+    decorationProvider = new DebrisDecorationProvider();
+    context.subscriptions.push(vscode.window.registerFileDecorationProvider(decorationProvider));
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     statusBarItem.command = 'kessler.showLaunchpad';
     context.subscriptions.push(statusBarItem);
@@ -18,10 +49,33 @@ function activate(context) {
     context.subscriptions.push(disposable);
     const rescanDisposable = vscode.commands.registerCommand('kessler.rescan', updateDebrisStatus);
     context.subscriptions.push(rescanDisposable);
+    const vaporizeDisposable = vscode.commands.registerCommand('kessler.vaporizeInline', async (resource) => {
+        if (!resource)
+            return;
+        const folderName = path.basename(resource.fsPath);
+        const action = await vscode.window.showWarningMessage(`Kessler: Ready to vaporize ${folderName}?`, { modal: true }, "Move to OS Trash");
+        if (action === "Move to OS Trash") {
+            try {
+                await vscode.workspace.fs.delete(resource, { recursive: true, useTrash: true });
+                vscode.window.showInformationMessage(`✨ Kessler: Vaporized ${folderName} to OS Trash.`);
+                updateDebrisStatus();
+            }
+            catch (err) {
+                vscode.window.showErrorMessage(`Kessler failed to vaporize ${folderName}: ${err}`);
+            }
+        }
+    });
+    context.subscriptions.push(vaporizeDisposable);
     // Initial scan
     updateDebrisStatus();
     // Rescan when workspace folders change
     vscode.workspace.onDidChangeWorkspaceFolders(() => updateDebrisStatus());
+    // Refresh decorations when Debris Lens setting changes
+    vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('kessler.enableDebrisLens')) {
+            decorationProvider.refreshAll();
+        }
+    });
     // Setup Git Branch Switch Watcher
     setupGitWatcher();
 }
@@ -63,7 +117,7 @@ async function handleBranchSwitch(rootPath) {
     const isAutoCleanEnabled = config.get('autoCleanOnBranchSwitch') ?? false;
     if (!isAutoCleanEnabled)
         return;
-    const targets = config.get('branchSwitchCleanupTargets') ?? ["target", ".next", "build", "dist", "out", ".svelte-kit", ".nuxt", ".parcel-cache"];
+    const targets = config.get('branchSwitchCleanupTargets') ?? ["node_modules", "target", ".next", "build", "dist", "out", ".svelte-kit", ".nuxt", ".parcel-cache"];
     // Run scanner for this repository
     const projects = await (0, scanner_1.scanWorkspace)([rootPath]);
     let freedSpace = 0;
@@ -107,6 +161,8 @@ async function updateDebrisStatus() {
     // Run the scanner in the background
     const paths = vscode.workspace.workspaceFolders.map(f => f.uri.fsPath);
     cachedProjects = await (0, scanner_1.scanWorkspace)(paths);
+    // Refresh File Decorations now that cache is updated
+    decorationProvider.refreshAll();
     let totalSize = 0;
     for (const p of cachedProjects) {
         totalSize += p.totalSize;

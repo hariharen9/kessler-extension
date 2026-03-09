@@ -48,8 +48,27 @@
       {
         "command": "kessler.rescan",
         "title": "Kessler: Rescan Workspace"
+      },
+      {
+        "command": "kessler.vaporizeInline",
+        "title": "Kessler: Vaporize Debris",
+        "icon": "$(trash)"
       }
     ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "kessler.vaporizeInline",
+          "when": "explorerResourceIsFolder",
+          "group": "inline"
+        },
+        {
+          "command": "kessler.vaporizeInline",
+          "when": "explorerResourceIsFolder",
+          "group": "2_workspace"
+        }
+      ]
+    },
     "configuration": {
       "title": "Kessler",
       "properties": {
@@ -101,8 +120,13 @@
           "items": {
             "type": "string"
           },
-          "default": ["target", ".next", "build", "dist", "out", ".svelte-kit", ".nuxt", ".parcel-cache"],
+          "default": ["node_modules", "target", ".next", "build", "dist", "out", ".svelte-kit", ".nuxt", ".parcel-cache"],
           "description": "Directories to safely clean on branch switch (if autoCleanOnBranchSwitch is enabled)."
+        },
+        "kessler.enableDebrisLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a subtle visual indicator (dot and dimmed color) next to known debris folders in the VS Code File Explorer."
         }
       }
     }

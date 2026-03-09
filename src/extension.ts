@@ -6,9 +6,51 @@ import { formatBytes } from './utils';
 let statusBarItem: vscode.StatusBarItem;
 let cachedProjects: Project[] = [];
 let lastThresholdAlertSize: number = 0; // Tracks if we've already alerted for this "surge"
+let decorationProvider: DebrisDecorationProvider;
+
+class DebrisDecorationProvider implements vscode.FileDecorationProvider {
+    private _onDidChangeFileDecorations: vscode.EventEmitter<vscode.Uri | vscode.Uri[]> = new vscode.EventEmitter<vscode.Uri | vscode.Uri[]>();
+    readonly onDidChangeFileDecorations: vscode.Event<vscode.Uri | vscode.Uri[]> = this._onDidChangeFileDecorations.event;
+
+    refreshAll() {
+        this._onDidChangeFileDecorations.fire(undefined as any);
+    }
+
+    provideFileDecoration(uri: vscode.Uri, token: vscode.CancellationToken): vscode.FileDecoration | undefined {
+        const config = vscode.workspace.getConfiguration('kessler');
+        const isLensEnabled = config.get<boolean>('enableDebrisLens') ?? true;
+        
+        if (!isLensEnabled) {
+            // Return an empty object to actively clear existing decorations
+            return {
+                badge: '',
+                tooltip: '',
+                color: undefined
+            };
+        }
+
+        const fsPath = uri.fsPath;
+        // Check if this path is known debris
+        for (const p of cachedProjects) {
+            for (const a of p.artifacts) {
+                if (a.path === fsPath) {
+                    return {
+                        badge: '●', // Subtle dot indicating tracked debris
+                        tooltip: `Kessler Debris: ${formatBytes(a.size)}`,
+                        color: new vscode.ThemeColor('descriptionForeground') // Dimmer text color
+                    };
+                }
+            }
+        }
+        return undefined;
+    }
+}
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Kessler VS Code is now active');
+
+    decorationProvider = new DebrisDecorationProvider();
+    context.subscriptions.push(vscode.window.registerFileDecorationProvider(decorationProvider));
 
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     statusBarItem.command = 'kessler.showLaunchpad';
@@ -20,11 +62,40 @@ export function activate(context: vscode.ExtensionContext) {
     const rescanDisposable = vscode.commands.registerCommand('kessler.rescan', updateDebrisStatus);
     context.subscriptions.push(rescanDisposable);
 
+    const vaporizeDisposable = vscode.commands.registerCommand('kessler.vaporizeInline', async (resource: vscode.Uri) => {
+        if (!resource) return;
+
+        const folderName = path.basename(resource.fsPath);
+        const action = await vscode.window.showWarningMessage(
+            `Kessler: Ready to vaporize ${folderName}?`,
+            { modal: true },
+            "Move to OS Trash"
+        );
+
+        if (action === "Move to OS Trash") {
+            try {
+                await vscode.workspace.fs.delete(resource, { recursive: true, useTrash: true });
+                vscode.window.showInformationMessage(`✨ Kessler: Vaporized ${folderName} to OS Trash.`);
+                updateDebrisStatus();
+            } catch (err) {
+                vscode.window.showErrorMessage(`Kessler failed to vaporize ${folderName}: ${err}`);
+            }
+        }
+    });
+    context.subscriptions.push(vaporizeDisposable);
+
     // Initial scan
     updateDebrisStatus();
 
     // Rescan when workspace folders change
     vscode.workspace.onDidChangeWorkspaceFolders(() => updateDebrisStatus());
+
+    // Refresh decorations when Debris Lens setting changes
+    vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('kessler.enableDebrisLens')) {
+            decorationProvider.refreshAll();
+        }
+    });
 
     // Setup Git Branch Switch Watcher
     setupGitWatcher();
@@ -69,7 +140,7 @@ async function handleBranchSwitch(rootPath: string) {
     const isAutoCleanEnabled = config.get<boolean>('autoCleanOnBranchSwitch') ?? false;
     if (!isAutoCleanEnabled) return;
 
-    const targets = config.get<string[]>('branchSwitchCleanupTargets') ?? ["target", ".next", "build", "dist", "out", ".svelte-kit", ".nuxt", ".parcel-cache"];
+    const targets = config.get<string[]>('branchSwitchCleanupTargets') ?? ["node_modules", "target", ".next", "build", "dist", "out", ".svelte-kit", ".nuxt", ".parcel-cache"];
     
     // Run scanner for this repository
     const projects = await scanWorkspace([rootPath]);
@@ -120,6 +191,9 @@ async function updateDebrisStatus() {
     // Run the scanner in the background
     const paths = vscode.workspace.workspaceFolders.map(f => f.uri.fsPath);
     cachedProjects = await scanWorkspace(paths);
+    
+    // Refresh File Decorations now that cache is updated
+    decorationProvider.refreshAll();
 
     let totalSize = 0;
     for (const p of cachedProjects) {
