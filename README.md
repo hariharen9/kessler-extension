@@ -95,7 +95,7 @@ Found a rogue piece of space debris that Kessler missed? Contributions are highl
 ---
 
 <div align="center">
-  Built with ❤️ by <b><a href="https://hariharen.site">Hariharen</a></b>
+  Built with ❤️ by <b><a href="https://hariharen.space">Hariharen</a></b>
   <br><br>
   <a href="https://www.buymeacoffee.com/hariharen">
     <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="160">
